@@ -1,0 +1,21 @@
+#t debug gdb gdbserver
+#/bin/gdbserver --attach :1234 `pidof $dd` &
+#/bin/gdbserver --attach :1234 `pp=$(pidof $dd);if [[ $pp != "" ]]; then echo $pp; else ps -eo pid,args | grep $dd | grep -v grep | | awk '{ print $1 }'; fi` &
+dd=(nginx local)
+/bin/gdbserver --attach :1234 `ps -eo pid,args | grep "${dd[0]}" | grep "${dd[1]}" | grep "${dd[2]}" | grep -v grep | awk '{ print $1 }'` &
+
+#t debug gdb connect
+gdb -p localpath/nginx_g
+echo "target remote `ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'``ps -eo args | grep gdbserver | grep "\--attach" | cut -d' ' -f3`"
+
+#t expand unbundle
+unbundle $ff --destdir=. --inplace --free-space-MB=$((`df /flash | awk ''NR==2' { print $2 - $3 }'` / 1024 - 20))
+
+#t ps
+# Useful PS trick to get hierarchy of processes and other important data
+ps -eo pid,ppid,pgid,sid,tty,stat,stime,etime,user,args | grep nginx
+
+# tmux
+tmux attach -t base
+tmux-resurrect
+
