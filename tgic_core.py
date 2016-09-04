@@ -24,11 +24,13 @@
 # then Colored rendering which is one of the main objectives of TGIC.
 
 
+from __future__ import print_function
 import re
 from enum import Enum
+from tgic_config import TGICConfigDB
 
-r_tag = re.compile("^#t .*")
-r_comment = re.compile("^#*")
+
+gConfigDB = None
 
 class CheetsSectionDB:
     def __init__(self):
@@ -102,9 +104,10 @@ class Line:
 
     @staticmethod
     def get_type(line):
-        if line.startswith("#t "):
+        tag_start_regex = gConfigDB.tag_token + " "
+        if line.startswith(tag_start_regex):
             return LineType.tag
-        if line.startswith("#") and not line.startswith("^#t "):
+        if line.startswith(gConfigDB.comment_token) and not line.startswith(tag_start_regex):
             return LineType.comment
         return LineType.normal
 
@@ -118,21 +121,21 @@ class Line:
     def isNormalCheet(self):
         return self.line_type == LineType.normal
 
-    def get_tags_from_tag_line(self, tagsDB, current_section):
+    def get_tags_from_tag_line(self, current_section):
         if not self.isTag:
             raise ValueError("Not a Tag line: ", self.line)
         # Remove first 3 characters and then split
         curr_line_tags = self.line[3:].split()
         for tag_name in curr_line_tags:
-            t = tagsDB.get_tag_by_name(tag_name, current_section)
+            t = gConfigDB.tagsDB.get_tag_by_name(tag_name, current_section)
     
 
 
 
 class CheetSection:
-    def __init__(self, cheetsDB):
-        cheetsDB.all_sections.append(self)
-        self.section_id = cheetsDB.next_section_id
+    def __init__(self):
+        gConfigDB.cheetsDB.all_sections.append(self)
+        self.section_id = gConfigDB.cheetsDB.next_section_id
         self.tags = []
         # List of lines of type "class Line"
         self.lines = []
@@ -146,16 +149,17 @@ class CheetSection:
         return 1 / len(self.tags)
 
 
-def readCheetsDbFile(filename, cheetsDB, tagsDB):
+def readCheetsDbFile(filename):
     ''' Read cheets.db file to populate cheetsDB and tagsDB
     '''
     with open(filename) as f:
+        current_section = None
         for line_string in f:
             line = Line(line_string)
             if line.isTag:
                 # Create new section
-                current_section = CheetSection(cheetsDB)
-                line.get_tags_from_tag_line(tagsDB, current_section)
+                current_section = CheetSection()
+                line.get_tags_from_tag_line(current_section)
                 
             if not current_section:
                 # To skip initial lines in file before first tag if any
@@ -163,7 +167,7 @@ def readCheetsDbFile(filename, cheetsDB, tagsDB):
 
             current_section.lines.append(line)
 
-def get_sections(cheetsDB, tagsDB, andList, orList):
+def get_sections(andList, orList):
     '''
         orList has list of andList of Tags
             cheets.py gdb,gdbserver expand,install important
@@ -171,16 +175,21 @@ def get_sections(cheetsDB, tagsDB, andList, orList):
         returns: list of sections
     '''
 
+def setConfig(configDB):
+    global gConfigDB
+    gConfigDB = configDB
                 
 if __name__ == '__main__':
-    cheetsDB = CheetsSectionDB() 
-    tagsDB = TagDB() 
-    readCheetsDbFile('cheets.db', cheetsDB, tagsDB)
+    configDB = TGICConfigDB()
+    setConfig(configDB)
+    configDB.cheetsDB = CheetsSectionDB()
+    configDB.tagsDB = TagDB()
+    readCheetsDbFile('cheets.db')
 
     import pprint
     pp = pprint.PrettyPrinter(depth=6)
 
-    print "\nAll tags: "
-    pp.pprint(tagsDB.tags_dict)
+    print("\nAll tags: ")
+    pp.pprint(configDB.tagsDB.tags_dict)
     #print "\nAll gdb Sections: "
     #pp.pprint(tagsDB.tags_dict['gdb'].cheet_sections)
